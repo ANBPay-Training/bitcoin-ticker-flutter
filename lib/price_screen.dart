@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'coin_data.dart';
+import 'dart:async';
 
 class PriceScreen extends StatefulWidget {
   @override
   _PriceScreenState createState() => _PriceScreenState();
 }
 
-// https://api.frankfurter.app/latest?from=EUR&to=USD
 class _PriceScreenState extends State<PriceScreen> {
   String selectedCurrency = 'USD';
-  Map<String, String> coinValues = {};
+  Map<String, String> coinValuesMap = {};
   bool isWaiting = false;
-
-  String bitCoin = '?';
+  Timer? timer;
 
   DropdownButton<String> androidDropdown() {
     List<DropdownMenuItem<String>> dropdownItems = [];
@@ -37,13 +36,15 @@ class _PriceScreenState extends State<PriceScreen> {
   }
 
   void getData() async {
+    // coinValuesMap = den map af coin navn og værdi som vi fik fra coin data class
     isWaiting = true;
     try {
       var data = await CoinData().getCoinData(selectedCurrency);
       isWaiting = false;
       setState(() {
-        bitCoin = data['bitcoin'] ?? '?';
-        print("bitcoinValueInUSD : " + bitCoin);
+        isWaiting = false;
+        coinValuesMap = data; //   (BTC, ETH, LTC)
+        print('coinValues: $coinValuesMap');
       });
     } catch (e) {
       print(e);
@@ -55,6 +56,16 @@ class _PriceScreenState extends State<PriceScreen> {
     super.initState();
     // Call getData() when the screen loads up
     getData();
+    timer = Timer.periodic(Duration(seconds: 30), (Timer t) {
+      //timer for at priserne bliver updatet hver 30 sec
+      getData();
+    });
+  }
+
+  @override // Timeren stopper, når brugeren forlader skærmen
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -63,41 +74,91 @@ class _PriceScreenState extends State<PriceScreen> {
       appBar: AppBar(
         title: Text('🤑 Coin Ticker'),
       ),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Padding(
-            padding: EdgeInsets.fromLTRB(18.0, 18.0, 18.0, 0),
-            child: myCard(),
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/bitcoin.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+                Colors.white.withOpacity(0.8), BlendMode.dstATop),
           ),
-          Container(
-            height: 150.0,
-            alignment: Alignment.center,
-            padding: EdgeInsets.only(bottom: 30.0),
-            color: Colors.lightBlue,
-            child: androidDropdown(),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Padding(
+                padding: EdgeInsets.fromLTRB(18.0, 18.0, 18.0, 0),
+                child: makeCards(),
+              ),
+              Container(
+                height: 150.0,
+                alignment: Alignment.center,
+                padding: EdgeInsets.only(bottom: 30.0),
+                color: Colors.white10,
+                child: androidDropdown(),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Card myCard() {
-    return Card(
-      color: Colors.lightBlueAccent,
-      elevation: 5.0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10.0),
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 28.0),
-        child: Text(
-          '1 BTC = $bitCoin $selectedCurrency',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 20.0,
-            color: Colors.white,
+  Column makeCards() {
+    // en column af de kort
+    List<Widget> cryptoCards = [];
+    for (String crypto in cryptoList) {
+      // loopes i bitcoin,ethereum,litecoin,dogecoin
+      cryptoCards.add(
+        // adder hver card to in liste med tre
+        CryptoCard(
+          cryptoCurrency: crypto,
+          value: isWaiting ? '?' : coinValuesMap[crypto] ?? '?',
+          selectedCurrency: selectedCurrency,
+        ),
+      );
+    }
+    return Column(
+      // retuner en column med de cart som list
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: cryptoCards,
+    );
+  }
+}
+
+class CryptoCard extends StatelessWidget {
+  // en class som laver en cart med en text af 3 variabler
+  final String cryptoCurrency;
+  final String value;
+  final String selectedCurrency;
+
+  const CryptoCard({
+    required this.cryptoCurrency,
+    required this.value,
+    required this.selectedCurrency,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(1.0, 1.0, 1.0, 0),
+      child: Card(
+        color: Colors.white10,
+        elevation: 1.0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10.0),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 15.0, horizontal: 15.0),
+          child: Text(
+            '1 ${cryptoCurrency.toUpperCase()} = $value $selectedCurrency',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 20.0,
+              color: Colors.white,
+            ),
           ),
         ),
       ),
